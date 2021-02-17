@@ -32,7 +32,7 @@
 namespace Auth {
 
 	std::unique_ptr<IPasswordService>
-	createPasswordServiceBase(std::string_view passwordAuthenticationBackend, std::size_t maxThrottlerEntries)
+	createPasswordService(std::string_view passwordAuthenticationBackend, std::size_t maxThrottlerEntries)
 	{
 		if (passwordAuthenticationBackend == "internal")
 			return std::make_unique<InternalPasswordService>(maxThrottlerEntries);
@@ -89,6 +89,26 @@ namespace Auth {
 			}
 		}
 	}
+
+	PasswordServiceBase::CheckResult
+	PasswordServiceBase::processRememberMe(Database::Session& session, const Wt::WApplication& app)
+	{
+		// TODO check tokens
+		return {};
+	}
+
+	void
+	PasswordServiceBase::rememberMe(Database::Session& session, Wt::WApplication& app, Wt::Dbo::ptr<Database::User> user)
+	{
+		// TODO set token
+	}
+
+	void
+	PasswordServiceBase::forgetMe(Database::Session& session, Wt::WApplication& app, Wt::Dbo::ptr<Database::User> user)
+	{
+		// TODO clear tokens
+	}
+
 
 } // namespace Auth
 

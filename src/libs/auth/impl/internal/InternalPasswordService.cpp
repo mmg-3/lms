@@ -46,6 +46,8 @@ namespace Auth
 			std::string_view loginName,
 			std::string_view password)
 	{
+		LMS_LOG(AUTH, DEBUG) << "Checking internal password for user '" << loginName << "'";
+
 		Database::User::PasswordHash passwordHash;
 		{
 			auto transaction {session.createSharedTransaction()};
@@ -53,23 +55,23 @@ namespace Auth
 			const Database::User::pointer user {Database::User::getByLoginName(session, loginName)};
 			if (!user)
 			{
+				LMS_LOG(AUTH, DEBUG) << "hashing random stuff";
 				// hash random stuff here to waste some time
-				_hashFunc.verify(Wt::WRandom::generateId(8), Wt::WRandom::generateId(8), Wt::WRandom::generateId(8));
+				hashRandomPassword();
 				return false;
 			}
 
-			// Don't allow users being created
+			// Don't allow users being created or coming from other backends
 			passwordHash = user->getPasswordHash();
 			if (passwordHash.salt.empty() || passwordHash.hash.empty())
 			{
 				// hash random stuff here to waste some time
-				_hashFunc.verify(Wt::WRandom::generateId(8), Wt::WRandom::generateId(8), Wt::WRandom::generateId(8));
+				hashRandomPassword();
 				return false;
 			}
 		}
 
 		{
-			LMS_LOG(AUTH, DEBUG) << "Checking internal password for user '" << loginName << "'";
 			return _hashFunc.verify(std::string {password}, std::string {passwordHash.salt}, std::string {passwordHash.hash});
 		}
 	}
@@ -83,6 +85,7 @@ namespace Auth
 	bool
 	InternalPasswordService::isPasswordSecureEnough(std::string_view loginName, std::string_view password) const
 	{
+		LMS_LOG(AUTH, DEBUG) << "EVAL";
 		return _validator.evaluateStrength(std::string {password}, std::string {loginName}, "").isValid();
 	}
 
@@ -101,7 +104,15 @@ namespace Auth
 	{
 		const std::string salt {Wt::WRandom::generateId(32)};
 
+		LMS_LOG(AUTH, DEBUG) << "Gen hash";
 		return {salt, _hashFunc.compute(std::string {password}, salt)};
+	}
+
+	void
+	InternalPasswordService::hashRandomPassword() const
+	{
+//		const std::string randStr {Wt::WRandom::generateId(32)};
+		hashPassword(Wt::WRandom::generateId(32));
 	}
 
 } // namespace Auth

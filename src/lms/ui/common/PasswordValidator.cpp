@@ -28,12 +28,12 @@ namespace UserInterface
 	class PasswordStrengthValidator : public Wt::WValidator
 	{
 		public:
-			PasswordStrengthValidator(std::string_view loginName) : _loginName {loginName} {}
+			PasswordStrengthValidator(LoginNameGetFunc loginNameGetFunc) : _loginNameGetFunc {std::move(loginNameGetFunc)} {}
 
 			Wt::WValidator::Result validate(const Wt::WString& input) const override;
 
 		private:
-			std::string _loginName;
+			LoginNameGetFunc _loginNameGetFunc;
 	};
 
 	Wt::WValidator::Result
@@ -42,7 +42,7 @@ namespace UserInterface
 		if (input.empty())
 			return Wt::WValidator::validate(input);
 
-		if (Service<::Auth::IPasswordService>::get()->isPasswordSecureEnough(_loginName, input.toUTF8()))
+		if (Service<::Auth::IPasswordService>::get()->isPasswordSecureEnough(_loginNameGetFunc(), input.toUTF8()))
 			return Wt::WValidator::Result {Wt::ValidationState::Valid};
 
 		return Wt::WValidator::Result {Wt::ValidationState::Invalid, Wt::WString::tr("Lms.password-too-weak")};
@@ -51,7 +51,12 @@ namespace UserInterface
 	std::shared_ptr<Wt::WValidator>
 	createPasswordStrengthValidator(std::string_view loginName)
 	{
-		return std::make_shared<PasswordStrengthValidator>(loginName);
+		return std::make_shared<PasswordStrengthValidator>([loginName = std::string {loginName}] { return loginName; });
+	}
+
+	std::shared_ptr<Wt::WValidator> createPasswordStrengthValidator(LoginNameGetFunc loginNameGetFunc)
+	{
+		return std::make_shared<PasswordStrengthValidator>(std::move(loginNameGetFunc));
 	}
 
 	class PasswordCheckValidator : public Wt::WValidator

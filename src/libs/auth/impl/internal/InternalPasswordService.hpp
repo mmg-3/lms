@@ -45,6 +45,7 @@ namespace Auth
 			void	setPassword(Wt::Dbo::ptr<Database::User> user, std::string_view newPassword) override;
 
 			Database::User::PasswordHash	hashPassword(std::string_view password) const;
+			void							hashRandomPassword() const;
 
 			const Wt::Auth::BCryptHashFunction	_hashFunc {7}; // TODO parametrize this
 			Wt::Auth::PasswordStrengthValidator	_validator;

@@ -186,7 +186,7 @@ LmsApplication::init()
 	else if (Service<::Auth::IPasswordService>::exists())
 		processPasswordAuth();
 	else
-		throw LmsException {"Not auth service available!"};
+		throw LmsException {"No auth service available!"};
 }
 
 void
@@ -211,6 +211,8 @@ LmsApplication::processPasswordAuth()
 		return;
 	}
 
+	setTheme();
+
 	// If here is no account in the database, launch the first connection wizard
 	// TODO only if can create password
 
@@ -224,7 +226,6 @@ LmsApplication::processPasswordAuth()
 
 	if (firstConnection && Service<::Auth::IPasswordService>::get()->canSetPasswords())
 	{
-		setTheme();
 		root()->addWidget(std::make_unique<InitWizardView>());
 	}
 	else

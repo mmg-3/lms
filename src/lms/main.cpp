@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
 		Service<Auth::IPasswordService> authPasswordService;
 		Service<Auth::IEnvService> authEnvService;
 
-		const std::string authenticationBackend {config->getString("authentication-backend")};
+		const std::string authenticationBackend {config->getString("authentication-backend", "internal")};
 		if (authenticationBackend == "internal" || authenticationBackend == "PAM")
 		{
 			authPasswordService.assign(Auth::createPasswordService(authenticationBackend, config->getULong("login-throttler-max-entriees", 10000)));
@@ -226,6 +226,8 @@ int main(int argc, char* argv[])
 		{
 			authEnvService.assign(Auth::createEnvService(authenticationBackend));
 		}
+		else
+			throw LmsException {"Bad value '" + authenticationBackend + "' for 'authentication-backend'"};
 
 		Service<CoverArt::IGrabber> coverArtService {CoverArt::createGrabber(argv[0],
 				server.appRoot() + "/images/unknown-cover.jpg",

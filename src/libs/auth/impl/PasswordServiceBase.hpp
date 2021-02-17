@@ -29,7 +29,8 @@ namespace Database
 	class Session;
 }
 
-namespace Auth {
+namespace Auth
+{
 
 	class PasswordServiceBase : public IPasswordService
 	{
@@ -59,4 +60,4 @@ namespace Auth {
 			LoginThrottler				_loginThrottler;
 	};
 
-}
+} // namespace Auth
