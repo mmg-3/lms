@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Emeric Poupon
+ * Copyright (C) 2019 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -19,22 +19,25 @@
 
 #pragma once
 
-#include <Wt/WTemplateFormView.h>
+#include <shared_mutex>
 
-#include "database/Types.hpp"
+#include "PasswordServiceBase.hpp"
 
-namespace UserInterface
+namespace Auth
 {
-	std::optional<Database::IdType>
-	processAuthEnv(const Wt::WEnvironment& env);
-
-	class Auth : public Wt::WTemplateFormView
+	class PAMPasswordService: public PasswordServiceBase
 	{
 		public:
-			Auth();
+			using PasswordServiceBase::PasswordServiceBase;
 
-			Wt::Signal<Database::IdType /*userId*/> userLoggedIn;
+		private:
+
+			bool	checkUserPassword(Database::Session& session,
+						std::string_view loginName,
+						std::string_view password) override;
+
+			bool	canSetPasswords() const override;
+			bool	isPasswordSecureEnough(std::string_view loginName, std::string_view password) const override;
+			void	setPassword(Wt::Dbo::ptr<Database::User> user, std::string_view newPassword);
 	};
-} // namespace UserInterface
-
-
+}

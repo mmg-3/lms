@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Emeric Poupon
+ * Copyright (C) 2021 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -17,24 +17,15 @@
  * along with LMS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include <Wt/WTemplateFormView.h>
-
-#include "database/Types.hpp"
+#include "MandatoryValidator.hpp"
 
 namespace UserInterface
 {
-	std::optional<Database::IdType>
-	processAuthEnv(const Wt::WEnvironment& env);
-
-	class Auth : public Wt::WTemplateFormView
+	std::shared_ptr<Wt::WValidator>
+	createMandatoryValidator()
 	{
-		public:
-			Auth();
-
-			Wt::Signal<Database::IdType /*userId*/> userLoggedIn;
-	};
+		auto v {std::make_shared<Wt::WValidator>()};
+		v->setMandatory(true);
+		return v;
+	}
 } // namespace UserInterface
-
-

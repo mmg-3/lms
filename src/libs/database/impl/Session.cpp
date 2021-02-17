@@ -22,6 +22,7 @@
 #include <map>
 #include <mutex>
 #include <thread>
+#include <string_view>
 
 #include "utils/Exception.hpp"
 #include "utils/Logger.hpp"
@@ -40,17 +41,16 @@
 
 namespace Database {
 
-#define LMS_DATABASE_VERSION	28
+	using Version = std::size_t;
+	static constexpr Version LMS_DATABASE_VERSION {28};
 
-using Version = std::size_t;
+	class VersionInfo
+	{
+		public:
+			using pointer = Wt::Dbo::ptr<VersionInfo>;
 
-class VersionInfo
-{
-	public:
-		using pointer = Wt::Dbo::ptr<VersionInfo>;
-
-		static VersionInfo::pointer getOrCreate(Session& session)
-		{
+			static VersionInfo::pointer getOrCreate(Session& session)
+			{
 			session.checkUniqueLocked();
 
 			pointer versionInfo {session.getDboSession().find<VersionInfo>()};
@@ -270,7 +270,7 @@ CREATE TABLE "user_backup" (
 		else if (version == 24)
 		{
 			// User's AuthMode
-			_session.execute("ALTER TABLE user ADD auth_mode INTEGER NOT NULL DEFAULT(" + std::to_string(static_cast<int>(User::defaultAuthMode)) + ")");
+			_session.execute("ALTER TABLE user ADD auth_mode INTEGER NOT NULL DEFAULT(" + std::to_string(static_cast<int>(/*User::defaultAuthMode*/0)) + ")");
 		}
 		else if (version == 25)
 		{

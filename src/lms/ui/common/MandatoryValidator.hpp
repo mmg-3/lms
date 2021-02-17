@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Emeric Poupon
+ * Copyright (C) 2021 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -19,14 +19,10 @@
 
 #pragma once
 
-#ifdef LMS_SUPPORT_PAM
+#include <Wt/WValidator.h>
 
-#include <string>
-
-namespace Auth::PAM
+namespace UserInterface
 {
-	bool checkUserPassword(const std::string& loginName, const std::string& password);
-}
-
-#endif // LMS_SUPPORT_PAM
+	std::shared_ptr<Wt::WValidator> createMandatoryValidator();
+} // namespace UserInterface
 

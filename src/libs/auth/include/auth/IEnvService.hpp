@@ -17,14 +17,10 @@
  * along with LMS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* This file contains some classes in order to get info from file using the libavconv */
-
 #pragma once
 
 #include <optional>
 #include <string>
-#include <boost/asio/ip/address.hpp>
-#include <Wt/WDateTime.h>
 
 #include "database/Types.hpp"
 
@@ -33,40 +29,35 @@ namespace Database
 	class Session;
 }
 
+namespace Wt
+{
+	class WEnvironment;
+}
 
-namespace Auth {
-
-	class IAuthTokenService
+namespace Auth
+{
+	class IEnvService
 	{
 		public:
-			virtual ~IAuthTokenService() = default;
+			virtual ~IEnvService() = default;
 
 			// Auth Token services
-			struct AuthTokenProcessResult
+			struct CheckResult
 			{
 				enum class State
 				{
-					Found,
+					Granted,
+					Denied,
 					Throttled,
-					NotFound,
 				};
 
-				struct AuthTokenInfo
-				{
-					Database::IdType userId;
-					Wt::WDateTime expiry;
-				};
-
-				State state {State::NotFound};
-				std::optional<AuthTokenInfo>	authTokenInfo {};
+				State state {State::Denied};
+				std::optional<Database::IdType>	userId {};
 			};
 
-			// Removed if found
-			virtual AuthTokenProcessResult	processAuthToken(Database::Session& session, const boost::asio::ip::address& clientAddress, const std::string& tokenValue) = 0;
-			virtual std::string		createAuthToken(Database::Session& session, Database::IdType userid, const Wt::WDateTime& expiry) = 0;
+			virtual CheckResult			processEnv(Database::Session& session, const Wt::WEnvironment& env) = 0;
 	};
 
-	std::unique_ptr<IAuthTokenService> createAuthTokenService(std::size_t maxThrottlerEntryCount);
-
+	std::unique_ptr<IEnvService> createEnvService(std::string_view backendName);
 }
 

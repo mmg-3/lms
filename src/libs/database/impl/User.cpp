@@ -25,6 +25,7 @@
 #include "database/Track.hpp"
 #include "database/TrackList.hpp"
 #include "utils/Logger.hpp"
+#include "StringViewTraits.hpp"
 
 namespace Database {
 
@@ -93,6 +94,14 @@ User::getDemo(Session& session)
 	return res;
 }
 
+std::size_t
+User::getCount(Session& session)
+{
+	session.checkSharedLocked();
+
+	return session.getDboSession().query<int>("SELECT COUNT(*) FROM user");
+}
+
 User::pointer
 User::create(Session& session, const std::string& loginName)
 {
@@ -115,7 +124,7 @@ User::getById(Session& session, IdType id)
 }
 
 User::pointer
-User::getByLoginName(Session& session, const std::string& name)
+User::getByLoginName(Session& session, std::string_view name)
 {
 	return session.getDboSession().find<User>()
 		.where("login_name = ?").bind(name);

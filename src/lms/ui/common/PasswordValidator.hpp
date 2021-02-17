@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Emeric Poupon
+ * Copyright (C) 2021 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -19,13 +19,15 @@
 
 #pragma once
 
-#include "database/User.hpp"
-#include "common/ValueStringModel.hpp"
+#include <Wt/WValidator.h>
 
 namespace UserInterface
 {
-	using AuthModeModel = ValueStringModel<Database::User::AuthMode>;
+	std::shared_ptr<Wt::WValidator> createPasswordStrengthValidator(std::string_view loginName);
+	using LoginNameGetFunc = std::function<std::string()>;
+	std::shared_ptr<Wt::WValidator> createPasswordStrengthValidator(LoginNameGetFunc loginNameGetFunc);
 
-	std::unique_ptr<AuthModeModel> createAuthModeModel();
-}
+	// Check current user password
+	std::shared_ptr<Wt::WValidator> createPasswordCheckValidator();
+} // namespace UserInterface
 

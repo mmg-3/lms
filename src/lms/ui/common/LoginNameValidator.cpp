@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Emeric Poupon
+ * Copyright (C) 2013 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -17,24 +17,20 @@
  * along with LMS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "LoginNameValidator.hpp"
 
-#include <Wt/WTemplateFormView.h>
-
-#include "database/Types.hpp"
+#include <Wt/WLengthValidator.h>
+#include "database/User.hpp"
 
 namespace UserInterface
 {
-	std::optional<Database::IdType>
-	processAuthEnv(const Wt::WEnvironment& env);
-
-	class Auth : public Wt::WTemplateFormView
+	std::shared_ptr<Wt::WValidator>
+	createLoginNameValidator()
 	{
-		public:
-			Auth();
-
-			Wt::Signal<Database::IdType /*userId*/> userLoggedIn;
-	};
+		auto v = std::make_unique<Wt::WLengthValidator>();
+		v->setMandatory(true);
+		v->setMinimumLength(::Database::User::MinNameLength);
+		v->setMaximumLength(::Database::User::MaxNameLength);
+		return v;
+	}
 } // namespace UserInterface
-
-

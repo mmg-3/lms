@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Emeric Poupon
+ * Copyright (C) 2021 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -19,22 +19,15 @@
 
 #pragma once
 
-#include <Wt/WTemplateFormView.h>
-
-#include "database/Types.hpp"
-
-namespace UserInterface
+namespace Wt::Dbo
 {
-	std::optional<Database::IdType>
-	processAuthEnv(const Wt::WEnvironment& env);
-
-	class Auth : public Wt::WTemplateFormView
+	template<>
+	struct sql_value_traits<std::string_view>
 	{
-		public:
-			Auth();
-
-			Wt::Signal<Database::IdType /*userId*/> userLoggedIn;
+		static void bind(std::string_view str, SqlStatement *statement, int column, int /* size */)
+		{
+			statement->bind(column, std::string {str});
+		}
 	};
-} // namespace UserInterface
-
+}
 

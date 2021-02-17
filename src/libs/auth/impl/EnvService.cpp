@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Emeric Poupon
+ * Copyright (C) 2021 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -17,24 +17,18 @@
  * along with LMS.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "auth/IEnvService.hpp"
 
-#include <Wt/WTemplateFormView.h>
+//#include "http-headers/HttpHeadersEnvService.hpp"
 
-#include "database/Types.hpp"
-
-namespace UserInterface
+namespace Auth
 {
-	std::optional<Database::IdType>
-	processAuthEnv(const Wt::WEnvironment& env);
-
-	class Auth : public Wt::WTemplateFormView
+	std::unique_ptr<IEnvService>
+	createEnvService(std::string_view backendName)
 	{
-		public:
-			Auth();
+		if (backendName == "http-headers")
+			return {}; // TODO
 
-			Wt::Signal<Database::IdType /*userId*/> userLoggedIn;
-	};
-} // namespace UserInterface
-
-
+		return {};
+	}
+}

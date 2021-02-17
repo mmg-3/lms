@@ -27,56 +27,19 @@
 #include <Wt/WPushButton.h>
 #include <Wt/WRandom.h>
 
-#include "auth/IAuthTokenService.hpp"
 #include "auth/IPasswordService.hpp"
 #include "database/Session.hpp"
+#include "database/User.hpp"
 #include "utils/Logger.hpp"
 #include "utils/Service.hpp"
 
-#include "common/Validators.hpp"
+#include "common/LoginNameValidator.hpp"
+#include "common/MandatoryValidator.hpp"
+#include "common/PasswordValidator.hpp"
 #include "LmsApplication.hpp"
 
-namespace UserInterface {
-
-static const std::string authCookieName {"LmsAuth"};
-
-static
-void
-createAuthToken(Database::IdType userId, const Wt::WDateTime& expiry)
+namespace UserInterface
 {
-	const std::string secret {Service<::Auth::IAuthTokenService>::get()->createAuthToken(LmsApp->getDbSession(), userId, expiry)};
-
-	LmsApp->setCookie(authCookieName,
-			secret,
-			expiry.toTime_t() - Wt::WDateTime::currentDateTime().toTime_t(),
-			"",
-			"",
-			LmsApp->environment().urlScheme() == "https");
-}
-
-
-std::optional<Database::IdType>
-processAuthToken(const Wt::WEnvironment& env)
-{
-	const std::string* authCookie {env.getCookie(authCookieName)};
-	if (!authCookie)
-		return std::nullopt;
-
-	const auto res {Service<::Auth::IAuthTokenService>::get()->processAuthToken(LmsApp->getDbSession(), boost::asio::ip::address::from_string(env.clientAddress()), *authCookie)};
-	switch (res.state)
-	{
-		case ::Auth::IAuthTokenService::AuthTokenProcessResult::State::NotFound:
-		case ::Auth::IAuthTokenService::AuthTokenProcessResult::State::Throttled:
-			LmsApp->setCookie(authCookieName, std::string {}, 0, "", "", env.urlScheme() == "https");
-			return std::nullopt;
-
-		case ::Auth::IAuthTokenService::AuthTokenProcessResult::State::Found:
-			createAuthToken(res.authTokenInfo->userId, res.authTokenInfo->expiry);
-			break;
-	}
-
-	return res.authTokenInfo->userId;
-}
 
 class AuthModel : public Wt::WFormModel
 {
@@ -93,30 +56,21 @@ class AuthModel : public Wt::WFormModel
 			addField(PasswordField);
 			addField(RememberMeField);
 
-			setValidator(LoginNameField, createNameValidator());
+			setValidator(LoginNameField, createLoginNameValidator());
 			setValidator(PasswordField, createMandatoryValidator());
 		}
 
 
 		void saveData()
 		{
-			bool isDemo;
-			{
-				auto transaction {LmsApp->getDbSession().createUniqueTransaction()};
+			auto transaction {LmsApp->getDbSession().createUniqueTransaction()};
 
-				Database::User::pointer user {Database::User::getByLoginName(LmsApp->getDbSession(), valueText(LoginNameField).toUTF8())};
-				user.modify()->setLastLogin(Wt::WDateTime::currentDateTime());
-				_userId = user.id();
+			Database::User::pointer user {Database::User::getById(LmsApp->getDbSession(), *_userId)};
 
-				isDemo = user->isDemo();
-			}
+			user.modify()->setLastLogin(Wt::WDateTime::currentDateTime());
 
 			if (Wt::asNumber(value(RememberMeField)))
-			{
-				const Wt::WDateTime now {Wt::WDateTime::currentDateTime()};
-
-				createAuthToken(*_userId, isDemo ? now.addDays(3) : now.addYears(1));
-			}
+				Service<::Auth::IPasswordService>::get()->rememberMe(LmsApp->getDbSession(), *LmsApp, user);
 		}
 
 		bool validateField(Field field)
@@ -125,18 +79,20 @@ class AuthModel : public Wt::WFormModel
 
 			if (field == PasswordField)
 			{
-				switch (Service<::Auth::IPasswordService>::get()->checkUserPassword(
+				const auto checkResult {Service<::Auth::IPasswordService>::get()->checkUserPassword(
 							LmsApp->getDbSession(),
 							boost::asio::ip::address::from_string(LmsApp->environment().clientAddress()),
 							valueText(LoginNameField).toUTF8(),
-							valueText(PasswordField).toUTF8()))
+							valueText(PasswordField).toUTF8())};
+				switch (checkResult.state)
 				{
-					case ::Auth::IPasswordService::PasswordCheckResult::Match:
+					case ::Auth::IPasswordService::CheckResult::State::Granted:
+						_userId = *checkResult.userId;
 						break;
-					case ::Auth::IPasswordService::PasswordCheckResult::Mismatch:
+					case ::Auth::IPasswordService::CheckResult::State::Denied:
 						error = Wt::WString::tr("Lms.password-bad-login-combination");
 						break;
-					case ::Auth::IPasswordService::PasswordCheckResult::Throttled:
+					case ::Auth::IPasswordService::CheckResult::State::Throttled:
 						error = Wt::WString::tr("Lms.password-client-throttled");
 						break;
 				}

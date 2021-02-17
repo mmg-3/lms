@@ -24,8 +24,8 @@
 #include <Wt/WServer.h>
 #include <Wt/WApplication.h>
 
-#include "auth/IAuthTokenService.hpp"
 #include "auth/IPasswordService.hpp"
+#include "auth/IEnvService.hpp"
 #include "cover/ICoverArtGrabber.hpp"
 #include "database/Db.hpp"
 #include "database/Session.hpp"
@@ -211,10 +211,22 @@ int main(int argc, char* argv[])
 
 		UserInterface::LmsApplicationGroupContainer appGroups;
 
-		// Service initialization order is important
+		// Service initialization order is important (reverse-order for deinit)
 		Service<IChildProcessManager> childProcessManagerService {createChildProcessManager()};
-		Service<Auth::IAuthTokenService> authTokenService {Auth::createAuthTokenService(config->getULong("login-throttler-max-entriees", 10000))};
-		Service<Auth::IPasswordService> passwordService {Auth::createPasswordService(config->getULong("login-throttler-max-entriees", 10000))};
+
+		Service<Auth::IPasswordService> authPasswordService;
+		Service<Auth::IEnvService> authEnvService;
+
+		const std::string authenticationBackend {config->getString("authentication-backend")};
+		if (authenticationBackend == "internal" || authenticationBackend == "PAM")
+		{
+			authPasswordService.assign(Auth::createPasswordService(authenticationBackend, config->getULong("login-throttler-max-entriees", 10000)));
+		}
+		else if (authenticationBackend == "http-headers")
+		{
+			authEnvService.assign(Auth::createEnvService(authenticationBackend));
+		}
+
 		Service<CoverArt::IGrabber> coverArtService {CoverArt::createGrabber(argv[0],
 				server.appRoot() + "/images/unknown-cover.jpg",
 				config->getULong("cover-max-cache-size", 30) * 1000 * 1000,

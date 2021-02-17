@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Emeric Poupon
+ * Copyright (C) 2021 Emeric Poupon
  *
  * This file is part of LMS.
  *
@@ -19,22 +19,19 @@
 
 #pragma once
 
-#include <Wt/WTemplateFormView.h>
+#include "utils/Exception.hpp"
 
-#include "database/Types.hpp"
-
-namespace UserInterface
+namespace Auth
 {
-	std::optional<Database::IdType>
-	processAuthEnv(const Wt::WEnvironment& env);
+	class Exception : public ::LmsException
+	{
+		using LmsException::LmsException;
+	};
 
-	class Auth : public Wt::WTemplateFormView
+	class NotImplementedException : public Exception
 	{
 		public:
-			Auth();
-
-			Wt::Signal<Database::IdType /*userId*/> userLoggedIn;
+			NotImplementedException() : Auth::Exception {"Not implemented"} {}
 	};
-} // namespace UserInterface
-
+}
 

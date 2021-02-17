@@ -28,6 +28,8 @@
 #include <Wt/WStackedWidget.h>
 #include <Wt/WText.h>
 
+#include "auth/IEnvService.hpp"
+#include "auth/IPasswordService.hpp"
 #include "cover/ICoverArtGrabber.hpp"
 #include "database/Artist.hpp"
 #include "database/Cluster.hpp"
@@ -55,7 +57,6 @@
 #include "MediaPlayer.hpp"
 #include "PlayQueue.hpp"
 #include "SettingsView.hpp"
-
 
 namespace UserInterface {
 
@@ -125,7 +126,27 @@ LmsApplication::LmsApplication(const Wt::WEnvironment& env,
   _db {db},
   _appGroups {appGroups}
 {
+	try
+	{
+		init();
+	}
+	catch (LmsApplicationException& e)
+	{
+		LMS_LOG(UI, WARNING) << "Caught a LmsApplication exception: " << e.what();
+		handleException(e);
+	}
+	catch (std::exception& e)
+	{
+		LMS_LOG(UI, ERROR) << "Caught exception: " << e.what();
+		throw LmsException {"Internal error"}; // Do not put details here at it may appear on the user rendered html
+	}
+}
 
+LmsApplication::~LmsApplication() = default;
+
+void
+LmsApplication::init()
+{
 	useStyleSheet("resources/font-awesome/css/font-awesome.min.css");
 
 	// Add a resource bundle
@@ -160,75 +181,76 @@ LmsApplication::LmsApplication(const Wt::WEnvironment& env,
 	// Handle Media Scanner events and other session events
 	enableUpdates(true);
 
+	if (Service<::Auth::IEnvService>::exists())
+		processEnvAuth();
+	else if (Service<::Auth::IPasswordService>::exists())
+		processPasswordAuth();
+	else
+		throw LmsException {"Not auth service available!"};
+}
+
+void
+LmsApplication::processEnvAuth()
+{
+	const auto checkResult {Service<::Auth::IEnvService>::get()->processEnv(getDbSession(), wApp->environment())};
+	if (checkResult.state != ::Auth::IEnvService::CheckResult::State::Granted)
+		throw LmsException {"Cannot extract user from environment!"};
+
+	_userId = *checkResult.userId;
+	onUserLoggedIn();
+}
+
+void
+LmsApplication::processPasswordAuth()
+{
+	const auto checkResult {Service<::Auth::IPasswordService>::get()->processRememberMe(getDbSession(), *this)};
+	if (checkResult.state == ::Auth::IPasswordService::CheckResult::State::Granted)
+	{
+		_userId = *checkResult.userId;
+		onUserLoggedIn();
+		return;
+	}
+
 	// If here is no account in the database, launch the first connection wizard
+	// TODO only if can create password
+
 	bool firstConnection {};
 	{
 		auto transaction {getDbSession().createSharedTransaction()};
-		firstConnection = Database::User::getAll(getDbSession()).empty();
+		firstConnection = Database::User::getCount(getDbSession()) == 0;
 	}
 
 	LMS_LOG(UI, DEBUG) << "Creating root widget. First connection = " << firstConnection;
 
-	if (firstConnection)
+	if (firstConnection && Service<::Auth::IPasswordService>::get()->canSetPasswords())
 	{
-		setTheme(std::make_unique<LmsTheme>(Database::User::defaultUITheme));
+		setTheme();
 		root()->addWidget(std::make_unique<InitWizardView>());
-		return;
-	}
-
-	const auto userId {processAuthToken(env)};
-
-	{
-		Database::User::UITheme theme {Database::User::defaultUITheme};
-		if (userId)
-		{
-			auto transaction {getDbSession().createSharedTransaction()};
-			const auto user {Database::User::getById(getDbSession(), *userId)};
-			if (user)
-				theme = user->getUITheme();
-		}
-
-		setTheme(std::make_unique<LmsTheme>(theme));
-	}
-
-	if (userId)
-	{
-		try
-		{
-			handleUserLoggedIn(*userId, false);
-		}
-		catch (LmsApplicationException& e)
-		{
-			LMS_LOG(UI, WARNING) << "Caught a LmsApplication exception: " << e.what();
-			handleException(e);
-		}
-		catch (std::exception& e)
-		{
-			LMS_LOG(UI, ERROR) << "Caught exception: " << e.what();
-			throw LmsException {"Internal error"}; // Do not put details here at it may appear on the user rendered html
-		}
 	}
 	else
 	{
 		Auth* auth {root()->addNew<Auth>()};
 		auth->userLoggedIn.connect(this, [this](Database::IdType userId)
 		{
-			{
-				auto transaction {getDbSession().createSharedTransaction()};
-				const auto user {Database::User::getById(getDbSession(), userId)};
-				if (user)
-				{
-					LmsTheme* lmsTheme {static_cast<LmsTheme*>(LmsApp->theme().get())};
-					lmsTheme->setTheme(user->getUITheme());
-				}
-			}
-
-			handleUserLoggedIn(userId, true);
+			_userId = userId;
+			_userAuthStrong = true;
+			onUserLoggedIn();
 		});
 	}
 }
 
-LmsApplication::~LmsApplication() = default;
+void
+LmsApplication::setTheme()
+{
+	Database::User::UITheme theme {Database::User::defaultUITheme};
+	{
+		auto transaction {getDbSession().createSharedTransaction()};
+		if (const auto user {getUser()})
+			theme = user->getUITheme();
+	}
+
+	WApplication::setTheme(std::make_unique<LmsTheme>(theme));
+}
 
 void
 LmsApplication::finalize()
@@ -407,24 +429,21 @@ LmsApplication::getApplicationGroup()
 }
 
 void
-LmsApplication::handleUserLoggedOut()
+LmsApplication::logoutUser()
 {
-	LMS_LOG(UI, INFO) << "User '" << getUserLoginName() << " 'logged out";
-
 	{
 		auto transaction {getDbSession().createUniqueTransaction()};
 		getUser().modify()->clearAuthTokens();
 	}
 
+	LMS_LOG(UI, INFO) << "User '" << getUserLoginName() << " 'logged out";
 	goHomeAndQuit();
 }
 
 void
-LmsApplication::handleUserLoggedIn(Database::IdType userId, bool strongAuth)
+LmsApplication::onUserLoggedIn()
 {
-	_userId = userId;
-	_userAuthStrong = strongAuth;
-
+	setTheme();
 	root()->clear();
 
 	const LmsApplicationInfo info {LmsApplicationInfo::fromEnvironment(environment())};
@@ -466,9 +485,9 @@ LmsApplication::createHome()
 	main->bindNew<Wt::WAnchor>("settings", Wt::WLink {Wt::LinkType::InternalPath, "/settings"}, Wt::WString::tr("Lms.Settings.menu-settings"));
 
 	{
-		auto* logout {main->bindNew<Wt::WAnchor>("logout")};
+		Wt::WAnchor* logout {main->bindNew<Wt::WAnchor>("logout")};
 		logout->setText(Wt::WString::tr("Lms.logout"));
-		logout->clicked().connect(this, &LmsApplication::handleUserLoggedOut);
+		logout->clicked().connect(this, &LmsApplication::logoutUser);
 	}
 
 	Wt::WLineEdit* searchEdit {main->bindNew<Wt::WLineEdit>("search")};
@@ -483,10 +502,10 @@ LmsApplication::createHome()
 
 	// Contents
 	// Order is important in mainStack, see IdxRoot!
-	Wt::WStackedWidget* mainStack = main->bindNew<Wt::WStackedWidget>("contents");
+	Wt::WStackedWidget* mainStack {main->bindNew<Wt::WStackedWidget>("contents")};
 	mainStack->setAttributeValue("style", "overflow-x:visible;overflow-y:visible;");
 
-	Explore* explore = mainStack->addNew<Explore>(filters);
+	Explore* explore {mainStack->addNew<Explore>(filters)};
 	_playQueue = mainStack->addNew<PlayQueue>();
 	mainStack->addNew<SettingsView>();
 
